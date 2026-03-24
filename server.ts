@@ -54,9 +54,28 @@ async function startServer() {
 
   cron.schedule('0 0 1 * *', () => { console.log('[CRON] Auto-generating reports...'); autoGenerate(); });
 
+  // Auto-delete RIS forms older than 48 hours (runs every hour)
+  cron.schedule('0 * * * *', async () => {
+    try {
+      const { Op } = require('sequelize');
+      const { RIS } = models;
+      const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      const deletedCount = await RIS.destroy({
+        where: {
+          createdAt: { [Op.lt]: fortyEightHoursAgo }
+        }
+      });
+      if (deletedCount > 0) {
+        console.log(`[CRON] Auto-deleted ${deletedCount} RIS forms older than 48 hours.`);
+      }
+    } catch (error) {
+      console.error('[CRON] Error auto-deleting old RIS forms:', error);
+    }
+  });
+
   sequelize.sync({ alter: true })
     .then(async () => {
-      console.log('✅ Database synced (sqlite)');
+      console.log(`✅ Database synced (${sequelize.getDialect()})`);
       await seedSuperAdmin();
       const server = app.listen(PORT, '0.0.0.0', () => console.log(`🚀 RIS Portal API -> http://localhost:${PORT}`));
 
