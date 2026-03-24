@@ -11,7 +11,7 @@ const userCtrl      = require('../controllers/userController');
 const reportCtrl    = require('../controllers/reportController');
 const { auth, requireRole } = require('../middleware/auth');
 
-const uploadDir = path.join(__dirname, '../uploads');
+const uploadDir = process.env.VERCEL ? '/tmp/uploads' : path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }

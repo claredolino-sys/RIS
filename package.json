@@ -36,7 +36,7 @@
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.13.1",
     "sequelize": "^6.37.8",
-    "sqlite3": "^6.0.1",
+    "sqlite3": "^5.1.7",
     "vite": "^6.2.0",
     "xlsx": "^0.18.5"
   },

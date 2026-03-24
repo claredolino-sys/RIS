@@ -7,11 +7,20 @@ let sequelize;
 if (process.env.DATABASE_URL) {
   // Use DATABASE_URL if provided (e.g., Supabase PostgreSQL)
   sequelize = new Sequelize(process.env.DATABASE_URL, {
-    dialect: process.env.DB_DIALECT || 'postgres',
+    dialect: 'postgres',
     logging: false,
-    dialectOptions: process.env.DB_SSL === 'true' ? {
-      ssl: { require: true, rejectUnauthorized: false }
-    } : {}
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false
+      }
+    },
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000
+    }
   });
 } else if (process.env.DB_DIALECT === 'mysql' || process.env.DB_DIALECT === 'postgres') {
   // Use individual env vars for MySQL or Postgres

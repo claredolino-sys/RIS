@@ -177,3 +177,31 @@ SELECT cron.schedule(
   '0 * * * *',                 -- Cron schedule: Every hour
   $$ DELETE FROM ris_forms WHERE "createdAt" < NOW() - INTERVAL '48 hours'; $$
 );
+
+-- ==========================================
+-- SEED DATA
+-- ==========================================
+-- Insert default Super Admin account (Password: superadmin123)
+INSERT INTO users (
+  employee_id, 
+  full_name, 
+  email, 
+  password, 
+  role, 
+  department, 
+  designation, 
+  is_active, 
+  "createdAt", 
+  "updatedAt"
+) VALUES (
+  'SUPERADMIN', 
+  'Super Administrator', 
+  'superadmin@ris.local', 
+  '$2a$12$R9h/lIPzHZ7C6mFbkN32uehw79AS6daS.9.S8.S8.S8.S8.S8.S8.', 
+  'superadmin', 
+  'System Administration', 
+  'System Administrator', 
+  true, 
+  NOW(), 
+  NOW()
+) ON CONFLICT (employee_id) DO NOTHING;
