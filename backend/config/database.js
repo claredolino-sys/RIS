@@ -37,9 +37,11 @@ if (process.env.DATABASE_URL) {
   );
 } else {
   // Fallback to SQLite
+  const sqlitePath = path.join(process.cwd(), 'database.sqlite');
+  console.log(`📂 Using SQLite database at: ${sqlitePath}`);
   sequelize = new Sequelize({
     dialect: 'sqlite',
-    storage: path.join(__dirname, '../../database.sqlite'),
+    storage: sqlitePath,
     logging: false,
   });
 }

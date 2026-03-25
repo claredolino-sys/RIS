@@ -1,12 +1,16 @@
 import express from 'express';
+console.log('🚀 Server script starting...');
 import cors from 'cors';
 import path from 'path';
 import cron from 'node-cron';
 import bcrypt from 'bcryptjs';
+import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
+
+dotenv.config();
 
 const models = require('./backend/models/index.js');
 const { sequelize, User } = models;
@@ -18,7 +22,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(cors({ origin: process.env.APP_URL || 'http://localhost:3000', credentials: true }));
+  app.use(cors({ origin: true, credentials: true }));
   app.use(express.json({ limit: '20mb' }));
   app.use(express.urlencoded({ extended: true, limit: '20mb' }));
   app.use('/uploads', express.static(path.join(process.cwd(), 'backend/uploads')));
@@ -26,6 +30,7 @@ async function startServer() {
   // API routes
   app.use('/api', routes);
   app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
+  app.use('/api/*', (req, res) => res.status(404).json({ message: 'API route not found' }));
 
   // Vite middleware for development
   let vite: any;
@@ -73,10 +78,12 @@ async function startServer() {
     }
   });
 
+  console.log('🔄 Syncing database...');
   sequelize.sync({ alter: true })
     .then(async () => {
       console.log(`✅ Database synced (${sequelize.getDialect()})`);
       await seedSuperAdmin();
+      console.log('🚀 Starting server...');
       const server = app.listen(PORT, '0.0.0.0', () => console.log(`🚀 RIS Portal API -> http://localhost:${PORT}`));
 
       server.on('error', (e: any) => {
