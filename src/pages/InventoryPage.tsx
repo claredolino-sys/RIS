@@ -1,24 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
-import { Upload, Plus, Download, Search, Trash2, Edit2, Package, FileText, Pen, Droplet, Laptop, Mouse, Folder, Paperclip, Book, Monitor, Printer, Scissors, Archive, X } from 'lucide-react';
-
-const getItemIcon = (description: string) => {
-  const desc = description.toLowerCase();
-  if (desc.includes('paper') || desc.includes('bond')) return <FileText size={18} className="text-blue-500" />;
-  if (desc.includes('pen') || desc.includes('marker') || desc.includes('pencil')) return <Pen size={18} className="text-purple-500" />;
-  if (desc.includes('ink') || desc.includes('toner')) return <Droplet size={18} className="text-cyan-500" />;
-  if (desc.includes('laptop') || desc.includes('computer')) return <Laptop size={18} className="text-gray-700" />;
-  if (desc.includes('mouse') || desc.includes('keyboard')) return <Mouse size={18} className="text-gray-600" />;
-  if (desc.includes('folder') || desc.includes('envelope')) return <Folder size={18} className="text-yellow-500" />;
-  if (desc.includes('clip') || desc.includes('stapler') || desc.includes('staple')) return <Paperclip size={18} className="text-gray-500" />;
-  if (desc.includes('book') || desc.includes('notebook')) return <Book size={18} className="text-green-600" />;
-  if (desc.includes('monitor') || desc.includes('screen')) return <Monitor size={18} className="text-indigo-500" />;
-  if (desc.includes('printer') || desc.includes('scanner')) return <Printer size={18} className="text-teal-600" />;
-  if (desc.includes('scissor') || desc.includes('cutter')) return <Scissors size={18} className="text-red-500" />;
-  if (desc.includes('box') || desc.includes('carton')) return <Archive size={18} className="text-orange-500" />;
-  return <Package size={18} className="text-gray-400" />;
-};
+import { Upload, Plus, Download, Search, Trash2, Edit2, X } from 'lucide-react';
+import { ConfirmModal } from '../components/ConfirmModal';
+import * as XLSX from 'xlsx';
+import { getItemIcon } from '../utils/itemIcons';
 
 export default function InventoryPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -29,11 +15,13 @@ export default function InventoryPage() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
-  const [formData, setFormData] = useState({
+  const [itemToDelete, setItemToDelete] = useState<number | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<any[] | null>(null);
+  const [formData, setFormData] = useState<any>({
     description: '',
     category: '',
     unit: '',
-    quantity: 0,
+    quantity: '',
   });
 
   useEffect(() => {
@@ -55,50 +43,113 @@ export default function InventoryPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     setUploading(true);
-    try {
-      const res = await api.post('/inventory/parse-excel', formData);
-      const { preview } = res.data;
-      
-      if (window.confirm(`Found ${preview.length} items. Proceed with upload?`)) {
-        const confirmRes = await api.post('/inventory/confirm-upload', { items: preview, overwrite: false });
-        toast.success(`Upload complete: ${confirmRes.data.created} created, ${confirmRes.data.skipped} skipped.`);
-        fetchInventory();
+    const reader = new FileReader();
+    
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        
+        // Convert to JSON starting from row 3 (index 2)
+        // Headers are in row 1: DESCRIPTION, UNIT, CLASSIFICATION
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+        
+        const preview: any[] = [];
+        // Start from index 2 (Row 3)
+        for (let i = 2; i < data.length; i++) {
+          const row = data[i];
+          if (!row || row.length === 0) continue;
+          
+          const description = row[0]; // Column A
+          const unit = row[1];        // Column B
+          const category = row[2];    // Column C (Classification)
+          const quantity = row[3];    // Column D (Stocks)
+          
+          if (description) {
+            preview.push({
+              description: String(description).trim(),
+              unit: unit ? String(unit).trim() : 'pcs',
+              category: category ? String(category).trim() : 'Uncategorized',
+              quantity: quantity && !isNaN(Number(quantity)) ? Number(quantity) : 0
+            });
+          }
+        }
+
+        if (preview.length === 0) {
+          toast.error('No valid items found in the Excel file.');
+          setUploading(false);
+          return;
+        }
+
+        setUploadPreview(preview);
+      } catch (err) {
+        console.error('Excel parsing error:', err);
+        toast.error('Failed to parse Excel file. Please check the format.');
+        setUploading(false);
+      } finally {
+        e.target.value = '';
       }
+    };
+
+    reader.onerror = () => {
+      toast.error('Failed to read file.');
+      setUploading(false);
+    };
+
+    reader.readAsBinaryString(file);
+  };
+
+  const confirmUpload = async () => {
+    if (!uploadPreview) return;
+    try {
+      const confirmRes = await api.post('/inventory/confirm-upload', { items: uploadPreview, overwrite: false });
+      toast.success(`Upload complete: ${confirmRes.data.created} created, ${confirmRes.data.skipped} skipped.`);
+      fetchInventory();
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Upload failed');
     } finally {
+      setUploadPreview(null);
       setUploading(false);
-      e.target.value = '';
     }
   };
 
-  const downloadTemplate = async () => {
+  const downloadTemplate = () => {
     try {
-      const res = await api.get('/inventory/template', { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'inventory_template.xlsx');
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      const headers = [['DESCRIPTION', 'UNIT', 'CLASSIFICATION', 'STOCKS'], []];
+      const sampleData = [
+        ['AIR FRESHENER, ambree, 300ml/', 'can', 'Janitorial Supplies', 50],
+        ['BALLPEN, blue', 'pieces', 'Writing Supplies', 100],
+        ['BATTERY, dry cell, size, AA size 1215 1.5 volts', 'pack', 'Electrical Supplies', 20]
+      ];
+      
+      const ws = XLSX.utils.aoa_to_sheet([...headers, ...sampleData]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+      
+      XLSX.writeFile(wb, "inventory_template.xlsx");
+      toast.success('Template downloaded');
     } catch (err) {
-      toast.error('Failed to download template');
+      toast.error('Failed to generate template');
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this item?')) return;
+    setItemToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
     try {
-      await api.delete(`/inventory/${id}`);
+      await api.delete(`/inventory/${itemToDelete}`);
       toast.success('Item deleted successfully');
       fetchInventory();
     } catch (err) {
       toast.error('Failed to delete item');
+    } finally {
+      setItemToDelete(null);
     }
   };
 
@@ -109,23 +160,27 @@ export default function InventoryPage() {
         description: item.description,
         category: item.category,
         unit: item.unit,
-        quantity: item.quantity,
+        quantity: item.quantity.toString(),
       });
     } else {
       setEditingItem(null);
-      setFormData({ description: '', category: '', unit: '', quantity: 0 });
+      setFormData({ description: '', category: '', unit: '', quantity: '' });
     }
     setIsModalOpen(true);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const dataToSave = {
+      ...formData,
+      quantity: Number(formData.quantity) || 0
+    };
     try {
       if (editingItem) {
-        await api.put(`/inventory/${editingItem.id}`, formData);
+        await api.put(`/inventory/${editingItem.id}`, dataToSave);
         toast.success('Item updated successfully');
       } else {
-        await api.post('/inventory', formData);
+        await api.post('/inventory', dataToSave);
         toast.success('Item added successfully');
       }
       setIsModalOpen(false);
@@ -277,7 +332,7 @@ export default function InventoryPage() {
                       required type="number" min="0"
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={formData.quantity}
-                      onChange={e => setFormData({...formData, quantity: parseInt(e.target.value) || 0})}
+                      onChange={e => setFormData({...formData, quantity: e.target.value})}
                     />
                   </div>
                 </div>
@@ -294,6 +349,27 @@ export default function InventoryPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!itemToDelete}
+        title="Delete Item"
+        message="Are you sure you want to delete this item? This action cannot be undone."
+        confirmText="Delete"
+        onConfirm={confirmDelete}
+        onCancel={() => setItemToDelete(null)}
+      />
+
+      <ConfirmModal
+        isOpen={!!uploadPreview}
+        title="Confirm Upload"
+        message={`Found ${uploadPreview?.length || 0} items. Proceed with upload?`}
+        confirmText="Upload"
+        onConfirm={confirmUpload}
+        onCancel={() => {
+          setUploadPreview(null);
+          setUploading(false);
+        }}
+      />
     </div>
   );
 }

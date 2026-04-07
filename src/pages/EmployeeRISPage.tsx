@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
-import { exportToPDF } from '../utils/pdf';
+import { exportToPDF, exportRIStoPDF } from '../utils/pdf';
 import { Download, Send, Printer, Eye, Edit, X } from 'lucide-react';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export default function EmployeeRISPage() {
+  const navigate = useNavigate();
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [viewingRis, setViewingRis] = useState<any>(null);
+  const [confirmSendRis, setConfirmSendRis] = useState<any>(null);
 
   useEffect(() => {
     fetchRecords();
@@ -26,16 +30,22 @@ export default function EmployeeRISPage() {
   };
 
   const handleDownloadAndSend = async (ris: any) => {
-    if (!window.confirm(`This will send your RIS to your Department Admin and open the print dialog. Proceed?`)) return;
-    
+    setConfirmSendRis(ris);
+  };
+
+  const proceedWithSend = async () => {
+    if (!confirmSendRis) return;
+    const ris = confirmSendRis;
     try {
-      await api.post(`/ris/${ris.id}/send`);
+      await api.put(`/ris/${ris.id}/send`);
       toast.success('RIS sent to Admin successfully');
       
       handleViewRis(ris.id, true);
       fetchRecords();
     } catch (err) {
       toast.error('Failed to process request');
+    } finally {
+      setConfirmSendRis(null);
     }
   };
 
@@ -66,7 +76,10 @@ export default function EmployeeRISPage() {
           <h1 className="text-2xl font-bold text-[#1A2340]">My RIS Records</h1>
           <p className="text-sm text-gray-500 mt-1">Manage your Requisition and Issue Slips</p>
         </div>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2">
+        <button 
+          onClick={() => navigate('/new-ris')}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+        >
           <Edit size={16} />
           New RIS
         </button>
@@ -102,6 +115,7 @@ export default function EmployeeRISPage() {
                     ${ris.status === 'draft' ? 'bg-gray-100 text-gray-800' : 
                       ris.status === 'sent' ? 'bg-blue-100 text-blue-800' : 
                       ris.status === 'received' ? 'bg-yellow-100 text-yellow-800' : 
+                      ris.status === 'rejected' ? 'bg-red-100 text-red-800' : 
                       'bg-green-100 text-green-800'}`}>
                     {ris.status.replace('_', ' ')}
                   </span>
@@ -120,7 +134,14 @@ export default function EmployeeRISPage() {
                     </button>
                   )}
                   {ris.status !== 'draft' && (
-                    <button onClick={() => handleViewRis(ris.id, true)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Print / Download PDF">
+                    <button onClick={async () => {
+                      try {
+                        const res = await api.get(`/ris/${ris.id}`);
+                        exportRIStoPDF(res.data);
+                      } catch (err) {
+                        toast.error('Failed to export PDF');
+                      }
+                    }} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Export to PDF (Appendix 63)">
                       <Download size={18} />
                     </button>
                   )}
@@ -137,6 +158,9 @@ export default function EmployeeRISPage() {
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center print:hidden">
               <h2 className="text-lg font-bold text-gray-800">Requisition and Issue Slip Details</h2>
               <div className="flex gap-2">
+                <button onClick={() => exportRIStoPDF(viewingRis)} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">
+                  <Download size={16} /> Export PDF
+                </button>
                 <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
                   <Printer size={16} /> Print
                 </button>
@@ -250,6 +274,13 @@ export default function EmployeeRISPage() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        isOpen={!!confirmSendRis}
+        title="Send RIS"
+        message="This will send your RIS to your Department Admin and open the print dialog. Proceed?"
+        onConfirm={proceedWithSend}
+        onCancel={() => setConfirmSendRis(null)}
+      />
     </div>
   );
 }

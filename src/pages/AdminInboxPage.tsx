@@ -3,6 +3,8 @@ import api from '../utils/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { CheckCircle, Edit3, Eye, Download, X, Printer } from 'lucide-react';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { exportRIStoPDF } from '../utils/pdf';
 
 export default function AdminInboxPage() {
   const { user } = useAuth();
@@ -12,6 +14,10 @@ export default function AdminInboxPage() {
   const [risNoInput, setRisNoInput] = useState('');
   
   const [viewingRis, setViewingRis] = useState<any>(null);
+  const [risToReject, setRisToReject] = useState<number | null>(null);
+  const [editingPreviewRisNo, setEditingPreviewRisNo] = useState(false);
+  const [previewRisNoInput, setPreviewRisNoInput] = useState('');
+  const [editingItems, setEditingItems] = useState(false);
 
   useEffect(() => {
     fetchInbox();
@@ -38,6 +44,33 @@ export default function AdminInboxPage() {
     }
   };
 
+  const handleApprove = async (id: number) => {
+    try {
+      await api.put(`/ris/${id}/status`, { status: 'approved' });
+      toast.success('RIS approved and inventory updated');
+      fetchInbox();
+    } catch (err) {
+      toast.error('Failed to approve RIS');
+    }
+  };
+
+  const handleReject = async (id: number) => {
+    setRisToReject(id);
+  };
+
+  const confirmReject = async () => {
+    if (!risToReject) return;
+    try {
+      await api.put(`/ris/${risToReject}/status`, { status: 'rejected' });
+      toast.success('RIS rejected');
+      fetchInbox();
+    } catch (err) {
+      toast.error('Failed to reject RIS');
+    } finally {
+      setRisToReject(null);
+    }
+  };
+
   const handleAssignRisNo = async (id: number) => {
     if (!risNoInput.trim()) return toast.error('RIS No. cannot be empty');
     try {
@@ -55,6 +88,9 @@ export default function AdminInboxPage() {
     try {
       const res = await api.get(`/ris/${id}`);
       setViewingRis(res.data);
+      setPreviewRisNoInput(res.data.ris_no || '');
+      setEditingPreviewRisNo(false);
+      setEditingItems(false);
       if (print) {
         setTimeout(() => {
           window.print();
@@ -62,6 +98,30 @@ export default function AdminInboxPage() {
       }
     } catch (err) {
       toast.error('Failed to fetch RIS details');
+    }
+  };
+
+  const handleSavePreviewRisNo = async () => {
+    if (!previewRisNoInput.trim()) return toast.error('RIS No. cannot be empty');
+    try {
+      await api.put(`/ris/${viewingRis.id}/assign-ris-no`, { ris_no: previewRisNoInput });
+      toast.success('RIS No. assigned successfully');
+      setViewingRis({ ...viewingRis, ris_no: previewRisNoInput });
+      setEditingPreviewRisNo(false);
+      fetchInbox();
+    } catch (err) {
+      toast.error('Failed to assign RIS No.');
+    }
+  };
+
+  const handleSaveItems = async () => {
+    try {
+      await api.put(`/ris/${viewingRis.id}/items`, { items: viewingRis.items });
+      toast.success('Items updated successfully');
+      setEditingItems(false);
+      fetchInbox();
+    } catch (err) {
+      toast.error('Failed to update items');
     }
   };
 
@@ -123,6 +183,7 @@ export default function AdminInboxPage() {
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
                     ${ris.status === 'sent' ? 'bg-blue-100 text-blue-800' : 
                       ris.status === 'received' ? 'bg-yellow-100 text-yellow-800' : 
+                      ris.status === 'rejected' ? 'bg-red-100 text-red-800' : 
                       'bg-green-100 text-green-800'}`}>
                     {ris.status.replace('_', ' ')}
                   </span>
@@ -131,7 +192,14 @@ export default function AdminInboxPage() {
                   <button onClick={() => handleViewRis(ris.id)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="View">
                     <Eye size={18} />
                   </button>
-                  <button onClick={() => handleViewRis(ris.id, true)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Print / Download PDF">
+                  <button onClick={async () => {
+                    try {
+                      const res = await api.get(`/ris/${ris.id}`);
+                      exportRIStoPDF(res.data);
+                    } catch (err) {
+                      toast.error('Failed to export PDF');
+                    }
+                  }} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Export to PDF (Appendix 63)">
                     <Download size={18} />
                   </button>
                   {ris.status === 'sent' && (
@@ -142,6 +210,24 @@ export default function AdminInboxPage() {
                       <CheckCircle size={14} />
                       Mark Received
                     </button>
+                  )}
+                  {ris.status === 'received' && (
+                    <>
+                      <button 
+                        onClick={() => handleApprove(ris.id)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded text-xs font-medium transition-colors"
+                      >
+                        <CheckCircle size={14} />
+                        Approve
+                      </button>
+                      <button 
+                        onClick={() => handleReject(ris.id)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs font-medium transition-colors"
+                      >
+                        <X size={14} />
+                        Reject
+                      </button>
+                    </>
                   )}
                   {user?.role === 'admin_administrative' && !ris.ris_no && (
                     <button 
@@ -165,10 +251,13 @@ export default function AdminInboxPage() {
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center print:hidden">
               <h2 className="text-lg font-bold text-gray-800">Requisition and Issue Slip Details</h2>
               <div className="flex gap-2">
+                <button onClick={() => exportRIStoPDF(viewingRis)} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">
+                  <Download size={16} /> Export PDF
+                </button>
                 <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
                   <Printer size={16} /> Print
                 </button>
-                <button onClick={() => setViewingRis(null)} className="text-gray-400 hover:text-gray-600 p-2">
+                <button onClick={() => { setViewingRis(null); setEditingItems(false); }} className="text-gray-400 hover:text-gray-600 p-2">
                   <X size={20} />
                 </button>
               </div>
@@ -188,8 +277,52 @@ export default function AdminInboxPage() {
                 </div>
                 <div className="text-right">
                   <p>Responsibility Center Code: <span className="font-semibold border-b border-black px-4">{viewingRis.responsibility_center_code || '_________________'}</span></p>
-                  <p className="mt-1">RIS No.: <span className="font-semibold border-b border-black px-4">{viewingRis.ris_no || '_________________'}</span></p>
+                  <div className="mt-1 flex items-center justify-end gap-2">
+                    <span>RIS No.:</span>
+                    {user?.role === 'admin_administrative' ? (
+                      editingPreviewRisNo ? (
+                        <>
+                          <div className="flex items-center gap-1 print:hidden">
+                            <input 
+                              type="text" 
+                              className="border border-gray-300 rounded px-2 py-0.5 text-sm w-32 focus:outline-none focus:border-blue-500"
+                              value={previewRisNoInput}
+                              onChange={e => setPreviewRisNoInput(e.target.value)}
+                              placeholder="Enter RIS No."
+                              autoFocus
+                            />
+                            <button onClick={handleSavePreviewRisNo} className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Save</button>
+                            <button onClick={() => { setEditingPreviewRisNo(false); setPreviewRisNoInput(viewingRis.ris_no || ''); }} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                          </div>
+                          <span className="hidden print:inline font-semibold border-b border-black px-4">{viewingRis.ris_no || '_________________'}</span>
+                        </>
+                      ) : (
+                        <span 
+                          className="font-semibold border-b border-black px-4 flex items-center gap-2 group cursor-pointer hover:bg-gray-100 transition-colors" 
+                          onClick={() => setEditingPreviewRisNo(true)}
+                          title="Click to edit RIS No."
+                        >
+                          {viewingRis.ris_no || '_________________'}
+                          <Edit3 size={14} className="text-gray-400 group-hover:text-blue-600 print:hidden" />
+                        </span>
+                      )
+                    ) : (
+                      <span className="font-semibold border-b border-black px-4">{viewingRis.ris_no || '_________________'}</span>
+                    )}
+                  </div>
                 </div>
+              </div>
+
+              <div className="flex justify-end mb-2 print:hidden">
+                {(user?.role === 'admin_administrative' || user?.role === 'admin') && viewingRis.status === 'sent' && (
+                  <button
+                    onClick={() => editingItems ? handleSaveItems() : setEditingItems(true)}
+                    className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
+                  >
+                    {editingItems ? <CheckCircle size={16} /> : <Edit3 size={16} />}
+                    {editingItems ? 'Save Items' : 'Edit Items'}
+                  </button>
+                )}
               </div>
 
               <table className="w-full text-left border-collapse border border-black text-sm mb-4">
@@ -217,10 +350,68 @@ export default function AdminInboxPage() {
                       <td className="border border-black p-2 text-center">{item.unit}</td>
                       <td className="border border-black p-2">{item.description}</td>
                       <td className="border border-black p-2 text-center">{item.quantity_requisition}</td>
-                      <td className="border border-black p-2 text-center">{item.stock_available_yes ? '✓' : ''}</td>
-                      <td className="border border-black p-2 text-center">{item.stock_available_no ? '✓' : ''}</td>
-                      <td className="border border-black p-2 text-center">{item.quantity_issue}</td>
-                      <td className="border border-black p-2">{item.remarks}</td>
+                      <td className="border border-black p-2 text-center">
+                        {editingItems ? (
+                          <input 
+                            type="checkbox" 
+                            checked={item.stock_available_yes} 
+                            onChange={e => {
+                              const newItems = [...viewingRis.items];
+                              newItems[idx].stock_available_yes = e.target.checked;
+                              setViewingRis({ ...viewingRis, items: newItems });
+                            }} 
+                          />
+                        ) : (
+                          item.stock_available_yes ? '✓' : ''
+                        )}
+                      </td>
+                      <td className="border border-black p-2 text-center">
+                        {editingItems ? (
+                          <input 
+                            type="checkbox" 
+                            checked={item.stock_available_no} 
+                            onChange={e => {
+                              const newItems = [...viewingRis.items];
+                              newItems[idx].stock_available_no = e.target.checked;
+                              setViewingRis({ ...viewingRis, items: newItems });
+                            }} 
+                          />
+                        ) : (
+                          item.stock_available_no ? '✓' : ''
+                        )}
+                      </td>
+                      <td className="border border-black p-2 text-center">
+                        {editingItems ? (
+                          <input 
+                            type="number" 
+                            className="w-full text-center border border-gray-300 rounded px-1"
+                            value={item.quantity_issue} 
+                            onChange={e => {
+                              const newItems = [...viewingRis.items];
+                              newItems[idx].quantity_issue = e.target.value;
+                              setViewingRis({ ...viewingRis, items: newItems });
+                            }} 
+                          />
+                        ) : (
+                          item.quantity_issue
+                        )}
+                      </td>
+                      <td className="border border-black p-2">
+                        {editingItems ? (
+                          <input 
+                            type="text" 
+                            className="w-full border border-gray-300 rounded px-1"
+                            value={item.remarks} 
+                            onChange={e => {
+                              const newItems = [...viewingRis.items];
+                              newItems[idx].remarks = e.target.value;
+                              setViewingRis({ ...viewingRis, items: newItems });
+                            }} 
+                          />
+                        ) : (
+                          item.remarks
+                        )}
+                      </td>
                     </tr>
                   )) : (
                     <tr>
@@ -278,6 +469,15 @@ export default function AdminInboxPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!risToReject}
+        title="Reject RIS"
+        message="Are you sure you want to reject this RIS?"
+        confirmText="Reject"
+        onConfirm={confirmReject}
+        onCancel={() => setRisToReject(null)}
+      />
     </div>
   );
 }

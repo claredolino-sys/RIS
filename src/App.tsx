@@ -6,10 +6,13 @@ import GuestDashboard from './pages/GuestDashboard';
 import AuthPage from './pages/AuthPage';
 import EmployeeRISPage from './pages/EmployeeRISPage';
 import AdminInboxPage from './pages/AdminInboxPage';
+import AdminDashboard from './pages/AdminDashboard';
 import InventoryPage from './pages/InventoryPage';
 import ReportsPage from './pages/ReportsPage';
 import SuperAdminPage from './pages/SuperAdminPage';
+import ApprovedRISPage from './pages/ApprovedRISPage';
 import Sidebar from './components/Sidebar';
+import SuperAdminGlobalNotification from './components/SuperAdminGlobalNotification';
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
   const { user, loading } = useAuth();
@@ -26,6 +29,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       <main className="flex-1 overflow-y-auto flex flex-col min-w-0">
         {children}
       </main>
+      <SuperAdminGlobalNotification />
     </div>
   );
 };
@@ -44,15 +48,35 @@ const AppRoutes = () => {
         <ProtectedRoute>
           <Layout>
             {user?.role === 'employee' && <EmployeeRISPage />}
-            {(user?.role === 'admin' || user?.role === 'admin_administrative') && <AdminInboxPage />}
+            {(user?.role === 'admin' || user?.role === 'admin_administrative') && <AdminDashboard />}
             {user?.role === 'superadmin' && <SuperAdminPage />}
           </Layout>
         </ProtectedRoute>
       } />
 
+      <Route path="/admin-inbox" element={
+        <ProtectedRoute allowedRoles={['admin', 'admin_administrative']}>
+          <Layout><AdminInboxPage /></Layout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/new-ris" element={
+        <ProtectedRoute>
+          <Layout>
+            <GuestDashboard />
+          </Layout>
+        </ProtectedRoute>
+      } />
+
       <Route path="/inventory" element={
-        <ProtectedRoute allowedRoles={['admin_administrative', 'superadmin']}>
+        <ProtectedRoute allowedRoles={['admin', 'admin_administrative', 'superadmin']}>
           <Layout><InventoryPage /></Layout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/approved-ris" element={
+        <ProtectedRoute allowedRoles={['superadmin']}>
+          <Layout><ApprovedRISPage /></Layout>
         </ProtectedRoute>
       } />
 

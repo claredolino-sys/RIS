@@ -3,15 +3,15 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit",
-    "start": "node server.ts"
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
+    "@supabase/supabase-js": "^2.100.0",
     "@tailwindcss/vite": "^4.1.14",
     "@tanstack/react-query": "^5.90.21",
     "@vitejs/plugin-react": "^5.0.4",
@@ -23,6 +23,7 @@
     "html2canvas": "^1.4.1",
     "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "multer": "^2.1.1",
@@ -35,7 +36,6 @@
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.13.1",
     "sequelize": "^6.37.8",
-    "sqlite3": "^5.1.7",
     "vite": "^6.2.0",
     "xlsx": "^0.18.5"
   },

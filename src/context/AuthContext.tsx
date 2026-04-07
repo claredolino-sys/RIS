@@ -11,12 +11,16 @@ interface User {
   division: string;
   office: string;
   designation: string;
+  entity_name?: string;
+  fund_cluster?: string;
+  responsibility_center_code?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (token: string, user: User) => void;
+  updateUser: (userData: Partial<User>) => void;
   logout: () => void;
 }
 
@@ -46,13 +50,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(userData);
   };
 
+  const updateUser = (userData: Partial<User>) => {
+    if (user) {
+      setUser({ ...user, ...userData });
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, updateUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

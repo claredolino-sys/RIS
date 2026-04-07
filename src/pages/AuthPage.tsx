@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
-  const { login } = useAuth();
+  const { login, updateUser } = useAuth();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -31,7 +31,7 @@ export default function AuthPage() {
         });
         login(res.data.token, res.data.user);
         toast.success('Logged in successfully');
-        checkPendingRIS();
+        await checkPendingRIS();
         navigate('/dashboard');
       } else {
         if (formData.password !== formData.confirm_password) {
@@ -40,7 +40,7 @@ export default function AuthPage() {
         const res = await api.post('/auth/register', formData);
         login(res.data.token, res.data.user);
         toast.success('Account created successfully');
-        checkPendingRIS();
+        await checkPendingRIS();
         navigate('/dashboard');
       }
     } catch (err: any) {
@@ -53,6 +53,11 @@ export default function AuthPage() {
     if (pendingId) {
       try {
         await api.post('/ris/claim', { ris_id: pendingId });
+        
+        // Refresh user profile to get the newly saved details
+        const res = await api.get('/auth/me');
+        updateUser(res.data);
+
         localStorage.removeItem('pending_ris_id');
         localStorage.removeItem('draft_ris');
         toast.success('Draft RIS claimed successfully');
@@ -96,8 +101,8 @@ export default function AuthPage() {
               </>
             )}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID No.</label>
-              <input required className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="EMP-12345" value={formData.employee_id} onChange={e => setFormData({...formData, employee_id: e.target.value})} />
+              <label className="block text-sm font-medium text-gray-700 mb-1">{isLogin ? 'Username' : 'Employee ID No.'}</label>
+              <input required className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder={isLogin ? "Username" : "EMP-12345"} value={formData.employee_id} onChange={e => setFormData({...formData, employee_id: e.target.value})} />
             </div>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
