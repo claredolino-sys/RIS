@@ -101,8 +101,8 @@ export default function AuthPage() {
               </>
             )}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">{isLogin ? 'Username' : 'Employee ID No.'}</label>
-              <input required className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder={isLogin ? "Username" : "EMP-12345"} value={formData.employee_id} onChange={e => setFormData({...formData, employee_id: e.target.value})} />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
+              <input required className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="EMP-12345" value={formData.employee_id} onChange={e => setFormData({...formData, employee_id: e.target.value})} />
             </div>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
